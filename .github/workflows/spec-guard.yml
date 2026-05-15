@@ -4,6 +4,9 @@ on:
   issues:
     types: [labeled, unlabeled]
 
+permissions:
+  issues: write
+
 jobs:
   enforce-compliance-rules:
     runs-on: ubuntu-latest
