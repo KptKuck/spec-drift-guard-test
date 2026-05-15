@@ -1,0 +1,96 @@
+name: Spec Guard
+
+on:
+  issues:
+    types: [labeled, unlabeled]
+
+jobs:
+  enforce-compliance-rules:
+    runs-on: ubuntu-latest
+    if: contains(join(github.event.issue.labels.*.name, ','), 'spec-assertion')
+    steps:
+      - name: Enforce compliance label rules
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const action = context.payload.action;
+            const labelName = context.payload.label?.name || '';
+            const isComplianceLabel = labelName.startsWith('compliance:');
+
+            if (!isComplianceLabel) {
+              console.log(`Label "${labelName}" is not a compliance label — skipping.`);
+              return;
+            }
+
+            const currentLabels = issue.labels.map(l => l.name);
+            const complianceLabels = currentLabels.filter(l => l.startsWith('compliance:'));
+
+            // --- Rule 1: verified is permanent ---
+            if (action === 'unlabeled' && labelName === 'compliance:verified') {
+              console.log('BLOCKED: compliance:verified cannot be removed.');
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                labels: ['compliance:verified']
+              });
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: '⛔ **Spec Guard:** `compliance:verified` ist endgueltig und kann nicht entfernt werden.'
+              });
+              return;
+            }
+
+            // --- Rule 2: only one compliance label at a time ---
+            if (action === 'labeled' && complianceLabels.length > 1) {
+              const labelsToRemove = complianceLabels.filter(l => l !== labelName);
+              for (const old of labelsToRemove) {
+                console.log(`Removing old compliance label: ${old}`);
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  name: old
+                });
+              }
+            }
+
+            // --- Rule 3: verified requires evidence ---
+            if (action === 'labeled' && labelName === 'compliance:verified') {
+              const body = issue.body || '';
+              const evidenceSection = body.match(/### Beweis\s*\n\s*\n?([\s\S]*?)(\n###|\n\n---|\s*$)/);
+              const evidenceText = evidenceSection ? evidenceSection[1].trim() : '';
+              const hasEvidence = evidenceText.length > 10 && evidenceText !== '_No response_';
+
+              if (!hasEvidence) {
+                console.log('BLOCKED: compliance:verified without evidence.');
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  name: 'compliance:verified'
+                });
+                // Re-add the previous status if we removed it in Rule 2
+                const hadInProgress = complianceLabels.includes('compliance:in-progress');
+                const hadOpen = complianceLabels.includes('compliance:open');
+                const fallback = hadInProgress ? 'compliance:in-progress' : hadOpen ? 'compliance:open' : 'compliance:open';
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  labels: [fallback]
+                });
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  body: '⛔ **Spec Guard:** `compliance:verified` erfordert einen ausgefuellten **Beweis**-Abschnitt im Issue-Body. Label wurde zurueckgesetzt.'
+                });
+                return;
+              }
+
+              console.log('compliance:verified accepted — evidence found.');
+            }

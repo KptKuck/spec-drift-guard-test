@@ -1,0 +1,46 @@
+name: Spec-Assertion
+description: Eine verbindliche Aussage aus einer Spec die im Code umgesetzt werden muss
+labels: ["spec-assertion", "compliance:open"]
+body:
+  - type: dropdown
+    id: spec
+    attributes:
+      label: Spec
+      description: Aus welcher Spec stammt die Aussage?
+      options:
+        - "#1 prozess-modell"
+        - "#2 heartbeat-mechanik"
+        - "#3 konto-zuordnung"
+        - "#4 positions-schutz-aufbau"
+        - "#5 guardian-hysterese"
+        - "#6 risiko-gouverneur"
+        - "#7 risk-desk"
+    validations:
+      required: true
+
+  - type: textarea
+    id: assertion
+    attributes:
+      label: Verbindliche Aussage
+      description: Die exakte Aussage aus der Spec (mit Querverweis)
+      placeholder: "[plan_30days.md §7 E2] Klasse RiskDesk hat Methode check_m1..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Akzeptanz-Kriterium
+      description: Woran erkennt man dass die Aussage im Code umgesetzt ist?
+      placeholder: "Klasse RiskDesk in risk_desk.py hat Methode check_m1 die CRITICAL loggt wenn Verlust > Schwellwert"
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Beweis
+      description: "Erst bei Verifikation ausfuellen. PFLICHT bevor Status auf 'verified' gesetzt wird."
+      placeholder: "risk_desk.py:45 — class RiskDesk mit async def check_m1(). Test: Log zeigt CRITICAL bei PnL=-6%"
+    validations:
+      required: false
